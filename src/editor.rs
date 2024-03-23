@@ -9,20 +9,9 @@ impl Editor {
     pub fn run(&self) {
         let _stdout = stdout().into_raw_mode().unwrap();
 
-        for key in io::stdin().keys() {
-            match key {
-                Ok(key) => match key {
-                    Key::Char(c) => {
-                        if c.is_control() {
-                            println!("{:?}\r", c as u8);
-                        } else {
-                            println!("{:?} ({})\r", c as u8, c);
-                        }
-                    }
-                    Key::Ctrl('c') => break,
-                    _ => println!("{key:?}\r"),
-                },
-                Err(err) => die(&err),
+        loop {
+            if let Err(error) = self.process_keypress() {
+                die(&error);
             }
         }
     }
@@ -30,8 +19,24 @@ impl Editor {
     pub fn default() -> Self {
         Editor {}
     }
+    fn process_keypress(&self) -> Result<(), std::io::Error> {
+        let pressed_key = read_key()?;
+        match pressed_key {
+            Key::Ctrl('c') => panic!("Program end"),
+            _ => (),
+        }
+        Ok(())
+    }
 }
 
 fn die(e: &std::io::Error) {
     panic!("{}", e);
+}
+
+fn read_key() -> Result<Key, std::io::Error> {
+    loop {
+        if let Some(key) = io::stdin().lock().keys().next() {
+            return key;
+        }
+    }
 }
