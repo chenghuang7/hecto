@@ -28,7 +28,12 @@ impl Row {
             .skip(start)
             .take(end - start)
         {
-            result.push_str(grapheme)
+            // result.push_str(grapheme)
+            if grapheme == "\t" {
+                result.push_str(" ");
+            } else {
+                result.push_str(grapheme);
+            }
         }
         result
     }
@@ -42,7 +47,7 @@ impl Row {
         self.string.is_empty()
     }
 
-    pub fn update_len(&self) {
-        self.len = self.string.graphemes(true).count()
+    pub fn update_len(&mut self) {
+        self.len = self.string.graphemes(true).count();
     }
 }

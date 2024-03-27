@@ -2,22 +2,44 @@ use std::env;
 use std::fs::File;
 use std::io::Write;
 
+use crate::Document;
 use crate::Row;
-use crate::{row, Document, Terminal};
+use crate::Terminal;
+use std::time::Duration;
+use std::time::Instant;
+use termion::color;
 use termion::event::Key;
 
+const STATUS_FG_COLOR: color::Rgb = color::Rgb(63, 63, 63);
+const STATUS_BG_COLOR: color::Rgb = color::Rgb(239, 239, 239);
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 #[derive(Default)]
 pub struct Position {
     pub x: usize,
     pub y: usize,
 }
+
+struct StatusMessage {
+    text: String,
+    time: Instant,
+}
+
+impl StatusMessage {
+    fn from(message: String) -> Self {
+        Self {
+            time: Instant::now(),
+            text: message,
+        }
+    }
+}
+
 pub struct Editor {
     should_quit: bool,
     terminal: Terminal,
     cursor_pos: Position,
     offset: Position,
     document: Document,
+    status_msg: StatusMessage,
 }
 
 impl Editor {
@@ -37,9 +59,17 @@ impl Editor {
 
     pub fn default() -> Self {
         let args: Vec<String> = env::args().collect();
+        let mut initial_status = String::from("HELP: Ctrl-A = quit");
         let document = if args.len() > 1 {
             let file_name = &args[1];
-            Document::open(&file_name).unwrap_or_default()
+            // Document::open(&file_name).unwrap_or_default()
+            let doc = Document::open(&file_name);
+            if doc.is_ok() {
+                doc.unwrap()
+            } else {
+                initial_status = format!("ERR: Could not open file: {}", file_name);
+                Document::default()
+            }
         } else {
             Document::default()
         };
@@ -52,6 +82,7 @@ impl Editor {
             offset: Position::default(),
             // document: Document::open(),
             document,
+            status_msg: StatusMessage::from(initial_status),
         }
     }
 
@@ -83,6 +114,9 @@ impl Editor {
         } else {
             self.draw_rows();
             // Terminal::cursor_pos(&self.cursor_pos);
+            self.draw_status_bar();
+            self.draw_status_msg();
+
             Terminal::cursor_pos(&Position {
                 x: self.cursor_pos.x.saturating_sub(self.offset.x),
                 y: self.cursor_pos.y.saturating_sub(self.offset.y),
@@ -95,7 +129,7 @@ impl Editor {
     fn draw_rows(&self) {
         let height = self.terminal.size().height;
         // for row in 0..self.terminal.size().height - 1 {
-        for terminal_row in 0..height - 1 {
+        for terminal_row in 0..height {
             Terminal::clear_current_line();
             // if terminal_row == height / 3 {
             if let Some(row) = self
@@ -238,6 +272,45 @@ impl Editor {
             offset.x = x.saturating_sub(width).saturating_add(1);
         }
         self.test();
+    }
+
+    fn draw_status_bar(&self) {
+        // let spaces = " ".repeat(self.terminal.size().width as usize);
+        let mut status;
+        let width = self.terminal.size().width as usize;
+        let mut file_name = "[No Name]".to_string();
+        if let Some(name) = &self.document.filename {
+            file_name = name.clone();
+            file_name.truncate(20);
+        }
+        status = format!("{} - {} lines", file_name, self.document.len());
+        let line_indicator = format!(
+            "{}/{}",
+            self.cursor_pos.y.saturating_add(1),
+            self.document.len()
+        );
+        let len = status.len() + line_indicator.len();
+        if width > len {
+            status.push_str(&" ".repeat(width - len));
+        }
+        status = format!("{}{}", status, line_indicator);
+        status.truncate(width);
+
+        Terminal::set_bg_color(STATUS_BG_COLOR);
+        Terminal::set_fg_color(STATUS_FG_COLOR);
+        println!("{}\r", status);
+        Terminal::unset_bg_color();
+        Terminal::unset_fg_color();
+    }
+
+    fn draw_status_msg(&self) {
+        Terminal::clear_current_line();
+        let message = &self.status_msg;
+        if Instant::now() - message.time < Duration::new(5, 0) {
+            let mut test = message.text.clone();
+            test.truncate(self.terminal.size().width as usize);
+            print!("{}", test);
+        }
     }
 }
 
