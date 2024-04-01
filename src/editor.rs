@@ -1,6 +1,7 @@
 use std::env;
 use std::fs::File;
 use std::io::Write;
+use std::result;
 
 use crate::Document;
 use crate::Row;
@@ -91,6 +92,27 @@ impl Editor {
         match pressed_key {
             // Key::Ctrl('c') => panic!("Program end"),
             Key::Ctrl('a') => self.should_quit = true,
+            Key::Char(c) => {
+                self.document.insert(&self.cursor_pos, c);
+                self.move_cursor(Key::Right);
+            }
+            Key::Backspace => {
+                if self.cursor_pos.x > 0 || self.cursor_pos.y > 0 {
+                    self.document.delete(&self.cursor_pos);
+                    self.move_cursor(Key::Left);
+                }
+                // self.document.insert(&self.cursor_pos, c);
+            }
+            Key::Delete => {
+                self.document.delete(&self.cursor_pos);
+                // if self.cursor_pos.x >= 0 && self.cursor_pos.y > 0 {
+                // self.move_cursor(Key::Left);
+                // }
+            }
+            Key::Ctrl('s') => {
+                self.save();
+            },
+            Key::Insert => {}
             Key::Up
             | Key::Down
             | Key::Left
@@ -172,7 +194,7 @@ impl Editor {
                     x = x.saturating_sub(1)
                 } else if y > 0 {
                     y -= 1;
-                    if let Some(row) = self.document.row(y) {
+                    x = if let Some(row) = self.document.row(y) {
                         row.len()
                     } else {
                         0
@@ -285,7 +307,10 @@ impl Editor {
         }
         status = format!("{} - {} lines", file_name, self.document.len());
         let line_indicator = format!(
+            // "{}/{}  
             "{}/{}",
+            // self.cursor_pos.x.saturating_add(1),
+            // self.document.row(self.cursor_pos.y).unwrap().len(),
             self.cursor_pos.y.saturating_add(1),
             self.document.len()
         );
@@ -310,6 +335,49 @@ impl Editor {
             let mut test = message.text.clone();
             test.truncate(self.terminal.size().width as usize);
             print!("{}", test);
+        }
+    }
+
+    fn prompt(&mut self, prompt: &str) -> Result<Option<String>, std::io::Error> {
+        let mut result = String::new();
+        loop {
+            self.status_msg = StatusMessage::from(format!("{}{}", prompt, result));
+            self.refresh_screen()?;
+            match Terminal::read_key()? {
+                Key::Backspace => {
+                    if !result.is_empty() {
+                        result.truncate(result.len() - 1);
+                    }
+                },
+                Key::Char('\n') => break,
+                Key::Char(c) => {
+                    if !c.is_control() {
+                        result.push(c);
+                    }
+                },
+                _ => (),
+            }
+        }
+        self.status_msg = StatusMessage::from(String::new());
+        if result.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(result))
+    }
+
+    fn save(&mut self) {
+        if self.document.filename.is_none() {
+            let new_name = self.prompt("Save as: ").unwrap_or(None);
+            if new_name.is_none() {
+                self.status_msg = StatusMessage::from("Save aborted.".to_string());
+                return;
+            }
+            self.document.filename = new_name;
+        }
+        if self.document.save().is_ok() {
+            self.status_msg = StatusMessage::from("File saved successfully.".to_string());
+        }else {
+            self.status_msg = StatusMessage::from("Error writiing file!".to_string());
         }
     }
 }
