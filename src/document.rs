@@ -78,10 +78,6 @@ impl Document {
             let row = self.rows.get_mut(at.y).unwrap();
             row.delete(at.x);
         }
-
-        // if at.x == 0 {
-        //     return;
-        // }
     }
 
     fn insert_newline(&mut self, at: &Position) {

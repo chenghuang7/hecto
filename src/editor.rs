@@ -113,8 +113,8 @@ impl Editor {
             }
             Key::Backspace => {
                 if self.cursor_pos.x > 0 || self.cursor_pos.y > 0 {
-                    self.document.delete(&self.cursor_pos);
                     self.move_cursor(Key::Left);
+                    self.document.delete(&self.cursor_pos);
                 }
                 // self.document.insert(&self.cursor_pos, c);
             }
