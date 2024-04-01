@@ -1,6 +1,6 @@
 use std::fs;
-use std::io::Write;
 use std::io::Error;
+use std::io::Write;
 
 use crate::Position;
 use crate::Row;
@@ -46,10 +46,10 @@ impl Document {
 
     pub fn insert(&mut self, at: &Position, c: char) {
         if at.y > self.len() {
-            return 
+            return;
         }
         self.dirty = true;
-        if c =='\n' {
+        if c == '\n' {
             self.insert_newline(at);
             return;
         }
@@ -70,7 +70,7 @@ impl Document {
             return;
         }
         self.dirty = true;
-        if at.x == self.rows.get_mut(at.y).unwrap().len() && at.y < len-1 {
+        if at.x == self.rows.get_mut(at.y).unwrap().len() && at.y < len - 1 {
             let next_row = self.rows.remove(at.y + 1);
             let row = self.rows.get_mut(at.y).unwrap();
             row.append(&next_row);
@@ -78,8 +78,8 @@ impl Document {
             let row = self.rows.get_mut(at.y).unwrap();
             row.delete(at.x);
         }
-        
-         // if at.x == 0 {
+
+        // if at.x == 0 {
         //     return;
         // }
     }
@@ -93,13 +93,11 @@ impl Document {
             return;
         }
         let new_row = self.rows.get_mut(at.y).unwrap().split(at.x);
-        self.rows.insert(at.y+1, new_row);
+        self.rows.insert(at.y + 1, new_row);
     }
 
     pub fn save(&mut self) -> Result<(), Error> {
-
         if let Some(file_name) = &self.filename {
-            
             let mut file = fs::File::create(file_name)?;
             for row in &self.rows {
                 file.write_all(row.as_bytes())?;

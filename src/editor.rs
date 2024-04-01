@@ -14,6 +14,8 @@ use termion::event::Key;
 const STATUS_FG_COLOR: color::Rgb = color::Rgb(63, 63, 63);
 const STATUS_BG_COLOR: color::Rgb = color::Rgb(239, 239, 239);
 const VERSION: &str = env!("CARGO_PKG_VERSION");
+const QUIT_TIMES: u8 = 3;
+
 #[derive(Default)]
 pub struct Position {
     pub x: usize,
@@ -41,6 +43,7 @@ pub struct Editor {
     offset: Position,
     document: Document,
     status_msg: StatusMessage,
+    quit_times: u8,
 }
 
 impl Editor {
@@ -84,6 +87,7 @@ impl Editor {
             // document: Document::open(),
             document,
             status_msg: StatusMessage::from(initial_status),
+            quit_times: 0,
         }
     }
 
@@ -91,7 +95,18 @@ impl Editor {
         let pressed_key = Terminal::read_key()?;
         match pressed_key {
             // Key::Ctrl('c') => panic!("Program end"),
-            Key::Ctrl('a') => self.should_quit = true,
+            // Key::Ctrl('a') => self.should_quit = true,
+            Key::Ctrl('a') => {
+                if self.quit_times > 0 && self.document.is_dirty() {
+                    self.status_msg = StatusMessage::from(format!(
+                        "WARNING! File has unsaved changes Press CTRL-A {} more times to quit.",
+                        self.quit_times
+                    ));
+                    self.quit_times -= 1;
+                    return Ok(());
+                }
+                self.should_quit = true
+            }
             Key::Char(c) => {
                 self.document.insert(&self.cursor_pos, c);
                 self.move_cursor(Key::Right);
@@ -111,7 +126,7 @@ impl Editor {
             }
             Key::Ctrl('s') => {
                 self.save();
-            },
+            }
             Key::Insert => {}
             Key::Up
             | Key::Down
@@ -124,6 +139,10 @@ impl Editor {
             _ => (),
         }
         self.scroll();
+        if self.quit_times < QUIT_TIMES {
+            self.quit_times = QUIT_TIMES;
+            self.status_msg = StatusMessage::from(String::new());
+        }
         Ok(())
     }
 
@@ -300,14 +319,27 @@ impl Editor {
         // let spaces = " ".repeat(self.terminal.size().width as usize);
         let mut status;
         let width = self.terminal.size().width as usize;
+
+        let modified_indicator = if self.document.is_dirty() {
+            " (modeified)"
+        } else {
+            ""
+        };
+
         let mut file_name = "[No Name]".to_string();
         if let Some(name) = &self.document.filename {
             file_name = name.clone();
             file_name.truncate(20);
         }
-        status = format!("{} - {} lines", file_name, self.document.len());
+        // status = format!("{} - {} lines", file_name, self.document.len());
+        status = format!(
+            "{} - {} lines{}",
+            file_name,
+            self.document.len(),
+            modified_indicator
+        );
         let line_indicator = format!(
-            // "{}/{}  
+            // "{}/{}
             "{}/{}",
             // self.cursor_pos.x.saturating_add(1),
             // self.document.row(self.cursor_pos.y).unwrap().len(),
@@ -348,13 +380,13 @@ impl Editor {
                     if !result.is_empty() {
                         result.truncate(result.len() - 1);
                     }
-                },
+                }
                 Key::Char('\n') => break,
                 Key::Char(c) => {
                     if !c.is_control() {
                         result.push(c);
                     }
-                },
+                }
                 _ => (),
             }
         }
@@ -376,7 +408,7 @@ impl Editor {
         }
         if self.document.save().is_ok() {
             self.status_msg = StatusMessage::from("File saved successfully.".to_string());
-        }else {
+        } else {
             self.status_msg = StatusMessage::from("Error writiing file!".to_string());
         }
     }
