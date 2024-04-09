@@ -13,7 +13,13 @@ const STATUS_BG_COLOR: color::Rgb = color::Rgb(239, 239, 239);
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const QUIT_TIMES: u8 = 3;
 
-#[derive(Default)]
+#[derive(PartialEq, Copy, Clone)]
+pub enum SearchDirection {
+    Forward,
+    Backward,
+}
+
+#[derive(Default, Clone)]
 pub struct Position {
     pub x: usize,
     pub y: usize,
@@ -126,21 +132,7 @@ impl Editor {
                 self.save();
             }
             Key::Ctrl('f') => {
-                if let Some(query) = self
-                    .prompt("Search: ", |editor, _, query| {
-                        if let Some(position) = editor.document.find(&query) {
-                            editor.cursor_pos = position;
-                            editor.scroll();
-                        }
-                    })
-                    .unwrap_or(None)
-                {
-                    if let Some(position) = self.document.find(&query[..]) {
-                        self.cursor_pos = position;
-                    } else {
-                        self.status_msg = StatusMessage::from("Not found".to_string());
-                    }
-                }
+                self.search();
             }
             Key::Insert => {}
             Key::Up
@@ -378,9 +370,9 @@ impl Editor {
         }
     }
 
-    fn prompt<C>(&mut self, prompt: &str, callback: C) -> Result<Option<String>, std::io::Error>
+    fn prompt<C>(&mut self, prompt: &str, mut callback: C) -> Result<Option<String>, std::io::Error>
     where
-        C: Fn(&mut Self, Key, &String),
+        C: FnMut(&mut Self, Key, &String),
     {
         let mut result = String::new();
         loop {
@@ -429,6 +421,73 @@ impl Editor {
         } else {
             self.status_msg = StatusMessage::from("Error writiing file!".to_string());
         }
+    }
+
+    fn search(&mut self) {
+        let old_position = self.cursor_pos.clone();
+        let mut direction = SearchDirection::Forward;
+
+        let query = self
+            .prompt(
+                "Search(ESC to cancle, Arrows to navigate): ",
+                |editor, key, query| {
+                    let mut moved = false;
+
+                    match key {
+                        Key::Right | Key::Down => {
+                            direction = SearchDirection::Forward;
+                            editor.move_cursor(Key::Right);
+                            moved = true;
+                        }
+                        Key::Left | Key::Up => {
+                            direction = SearchDirection::Backward;
+                        }
+                        _ => (),
+                    }
+                    if let Some(position) =
+                        editor.document.find(&query, &editor.cursor_pos, direction)
+                    {
+                        editor.cursor_pos = position;
+                        editor.scroll();
+                    } else if moved {
+                        editor.move_cursor(Key::Left);
+                    }
+                },
+            )
+            .unwrap_or(None);
+        if query.is_none() {
+            self.cursor_pos = old_position;
+            self.scroll();
+        }
+
+        // if let Some(query) = self
+        //     .prompt(
+        //         "Search(ESC to cancle, Arrows to navigate): ",
+        //         |editor, key, query| {
+        //             let mut moved = false;
+        //             match key {
+        //                 Key::Right | Key::Down => {
+        //                     editor.move_cursor(Key::Right);
+        //                     moved = true;
+        //                 }
+        //                 _ => (),
+        //             }
+        //             if let Some(position) = editor.document.find(&query, &editor.cursor_pos) {
+        //                 editor.cursor_pos = position;
+        //                 editor.scroll();
+        //             } else if moved {
+        //                 editor.move_cursor(Key::Left);
+        //             }
+        //         },
+        //     )
+        //     .unwrap_or(None)
+        // {
+        //     if let Some(position) = self.document.find(&query[..], &old_position) {
+        //         self.cursor_pos = position;
+        //     } else {
+        //         self.status_msg = StatusMessage::from("Not found".to_string());
+        //     }
+        // }
     }
 }
 

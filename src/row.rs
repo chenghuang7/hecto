@@ -1,3 +1,4 @@
+use crate::SearchDirection;
 use std::cmp;
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -117,19 +118,52 @@ impl Row {
         self.string.as_bytes()
     }
 
-    pub fn find(&self, query: &str) -> Option<usize> {
-        let matching_byte_index = self.string.find(query);
+    pub fn find(&self, query: &str, at: usize, direction: SearchDirection) -> Option<usize> {
+        if at > self.len {
+            return None;
+        }
+        let start = if direction == SearchDirection::Forward {
+            at
+        } else {
+            0
+        };
+        let end = if direction == SearchDirection::Forward {
+            self.len
+        } else {
+            at
+        };
+        let sub_string: String = self.string[..]
+            .graphemes(true)
+            .skip(start)
+            .take(end - start)
+            .collect();
+        let matching_byte_index = if direction == SearchDirection::Forward {
+            sub_string.find(query)
+        } else {
+            sub_string.rfind(query)
+        };
+
         if let Some(matching_byte_index) = matching_byte_index {
-            for (grapheme_index, (byte_index, _)) in
-                self.string[..].grapheme_indices(true).enumerate()
-            {
+            for (grapheme_index, (byte_index, _)) in sub_string.grapheme_indices(true).enumerate() {
                 if matching_byte_index == byte_index {
-                    return Some(grapheme_index);
+                    return Some(start + grapheme_index);
                 }
             }
         }
         None
     }
+    // pub fn find(&self, query: &str, after: usize, direction: usize) -> Option<usize> {
+    //     let sub_string: String = self.string[..].graphemes(true).skip(after).collect();
+    //     let matching_byte_index = sub_string.find(query);
+    //     if let Some(matching_byte_index) = matching_byte_index {
+    //         for (grapheme_index, (byte_index, _)) in sub_string.grapheme_indices(true).enumerate() {
+    //             if matching_byte_index == byte_index {
+    //                 return Some(after + grapheme_index);
+    //             }
+    //         }
+    //     }
+    //     None
+    // }
 }
 
 // bukausbrayvbvuybsuybviuybsdruybvyubvrby
