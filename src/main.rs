@@ -12,6 +12,7 @@ mod document;
 mod editor;
 mod row;
 mod terminal;
+mod hightlighting;
 
 pub use document::Document;
 use editor::Editor;

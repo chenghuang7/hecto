@@ -1,10 +1,13 @@
 use crate::SearchDirection;
 use std::cmp;
+use termion::color;
+use crate::hightlighting;
 use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Default)]
 pub struct Row {
     pub string: String,
+    hightlighting: Vec<hightlighting::Type>,
     len: usize,
 }
 
@@ -12,6 +15,7 @@ impl From<&str> for Row {
     fn from(slice: &str) -> Self {
         let mut row = Self {
             string: String::from(slice),
+            hightlighting: Vec::new(),
             len: slice.graphemes(true).count(),
         };
         // row.update_len();
@@ -25,18 +29,49 @@ impl Row {
         let start = cmp::min(start, end);
         // self.string.get(start..end).unwrap_or_default().to_string()
         let mut result = String::new();
-        for grapheme in self.string[..]
+        
+        let mut current_hightlighting = &hightlighting::Type::None;
+
+        for (index, grapheme) in self.string[..]
             .graphemes(true)
+            .enumerate()
             .skip(start)
             .take(end - start)
         {
             // result.push_str(grapheme)
-            if grapheme == "\t" {
-                result.push(' ');
-            } else {
-                result.push_str(grapheme);
+            // // if grapheme == "\t" {
+            // //     result.push(' ');
+            // // } else {
+            // //     result.push_str(grapheme);
+            // // }
+            if let Some(c) = grapheme.chars().next() {
+                
+                let hightlighting_type = self.hightlighting.get(index).unwrap_or(&hightlighting::Type::None);
+                if hightlighting_type != current_hightlighting {
+                    current_hightlighting = hightlighting_type;
+                    let start_highlight = format!("{}", termion::color::Fg(hightlighting_type.to_color()));
+                    result.push_str(&start_highlight[..]);
+
+                }
+
+                if c == '\t' {
+                    result.push_str(" ")
+                // } else if c.is_ascii_digit() {
+                //     result.push_str(
+                //         &format!(
+                //             "{}{}{}",
+                //             termion::color::Fg(color::Rgb(220,163,163)),
+                //             c,
+                //             color::Fg(color::Reset)
+                //         )[..],
+                //     );
+                } else {
+                    result.push(c);
+                }
             }
         }
+        let end_highlight = format!("{}", termion::color::Fg(color::Reset));
+        result.push_str((&end_highlight[..]));
         result
     }
 
@@ -110,6 +145,7 @@ impl Row {
 
         Self {
             string: split_row,
+            hightlighting: Vec::new(),
             len: length_row,
         }
     }
@@ -118,8 +154,97 @@ impl Row {
         self.string.as_bytes()
     }
 
+    pub fn hightlight(&mut self, word: Option<&str>) {
+        // let mut hightlighting = Vec::new();
+        
+        // for c in self.string.chars() {
+        //     if c.is_ascii_digit() {
+        //         hightlighting.push(hightlighting::Type::Number);
+        //     } else {
+        //         hightlighting.push(hightlighting::Type::None);
+        //     }
+        // }
+        // self.hightlighting = hightlighting;
+
+        let mut highlighting = Vec::new();            
+        let chars: Vec<char> = self.string.chars().collect();            
+        let mut matches = Vec::new();            
+        let mut search_index = 0;            
+
+        if let Some(word) = word {
+            while let Some(search_match) = self.find(word, search_index, SearchDirection::Forward) {            
+                matches.push(search_match);
+                if let Some(next_index) = search_match.checked_add(word[..].graphemes(true).count())            
+                {
+                    search_index = next_index;
+                } else {
+                    break;
+                }
+            }
+        }
+
+        let mut index = 0;
+        while let Some(c) = chars.get(index) {
+            if let Some(word) = word {
+                if matches.contains(&index) {
+                    for _ in word[..].graphemes(true) {
+                        index += 1;
+                        highlighting.push(hightlighting::Type::Match);
+                    }
+                    continue;
+                }
+            }
+
+            if c.is_ascii_digit() {
+                highlighting.push(hightlighting::Type::Number);
+            } else {
+                highlighting.push(hightlighting::Type::None);
+            }
+            index += 1;
+        }
+
+        self.hightlighting = highlighting;
+
+        // let mut hightlighting = Vec::new();
+
+        // let chars: Vec<char> = self.string.chars().collect();
+        // let mut matchs = Vec::new();
+        // let mut search_index = 0;
+
+        // if let Some(word) = word {
+        //     while let Some(search_match) = self.find(word, search_index, SearchDirection::Forward) {
+        //         matchs.push(search_match);
+        //         if let Some(next_index) = search_match.checked_add(word[..].graphemes(true).count()) {
+        //             search_index = next_index;
+        //         } else {
+        //             break;
+        //         }
+        //     }
+        // }
+
+        // let mut index = 0;
+        // while let Some(c) = chars.get(index) {
+        //     if let Some(word) = word {
+        //         if matchs.contains(&index) {
+        //             for _ in word[..].graphemes(true) {
+        //                 index += 1;
+        //                 hightlighting.push(hightlighting::Type::Match);
+        //             }
+        //             continue;
+        //         }
+        //     }
+        //     if c.is_ascii_digit() {
+        //         hightlighting.push(hightlighting::Type::Number);
+        //     } else {
+        //         hightlighting.push(hightlighting::Type::None);
+        //     }
+        // }
+        // self.hightlighting = hightlighting;
+
+    }
+
     pub fn find(&self, query: &str, at: usize, direction: SearchDirection) -> Option<usize> {
-        if at > self.len {
+        if at > self.len || query.is_empty() {
             return None;
         }
         let start = if direction == SearchDirection::Forward {
@@ -164,6 +289,7 @@ impl Row {
     //     }
     //     None
     // }
+
 }
 
 // bukausbrayvbvuybsuybviuybsdruybvyubvrby

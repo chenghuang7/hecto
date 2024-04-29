@@ -452,6 +452,7 @@ impl Editor {
                     } else if moved {
                         editor.move_cursor(Key::Left);
                     }
+                    editor.document.hightlight(Some(query))
                 },
             )
             .unwrap_or(None);
@@ -459,6 +460,8 @@ impl Editor {
             self.cursor_pos = old_position;
             self.scroll();
         }
+
+        self.document.hightlight(None);
 
         // if let Some(query) = self
         //     .prompt(
